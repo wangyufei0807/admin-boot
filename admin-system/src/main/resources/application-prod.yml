@@ -1,18 +1,24 @@
 # 生产环境配置
+# ⚠️ 重要：所有敏感配置必须通过环境变量设置，不能硬编码
 
 spring:
   # 数据源配置
   datasource:
+    # URL、用户名、密码必须通过环境变量注入（application.yml 中定义）
     hikari:
       minimum-idle: 10
       maximum-pool-size: 50
       idle-timeout: 300000
       connection-timeout: 20000
       max-lifetime: 1800000
+      # 生产环境启用连接验证
+      connection-test-query: SELECT 1
+      leak-detection-threshold: 60000
 
   # Redis 配置
   data:
     redis:
+      # 主机、端口、密码通过环境变量注入
       database: 1
       lettuce:
         pool:
@@ -20,15 +26,16 @@ spring:
           max-idle: 10
           min-idle: 5
           max-wait: -1ms
+        shutdown-timeout: 200ms
 
 # MyBatis-Plus 配置
 mybatis-plus:
   configuration:
-    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl  # 不打印 SQL
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl  # 不打印 SQL 日志
   global-config:
     banner: false
 
-# Knife4j 配置（生产环境关闭）
+# Knife4j 配置（生产环境关闭 API 文档）
 knife4j:
   enable: false
 
@@ -36,23 +43,19 @@ knife4j:
 security:
   white-list:
     - /api/auth/**
-    - /doc.html
-    - /swagger-ui/**
-    - /swagger-ui.html
-    - /v3/api-docs/**
-    - /v3/api-docs.yaml
-    - /webjars/**
 
-# 跨域配置
+# 跨域配置（生产环境：严格策略）
 cors:
   allowed-origins:
     - https://your-domain.com
+    - https://api.your-domain.com
   allowed-methods:
     - GET
     - POST
     - PUT
     - DELETE
     - OPTIONS
+  # 明确列出需要的请求头，不使用通配符
   allowed-headers:
     - Authorization
     - Content-Type
@@ -71,15 +74,19 @@ rate-limit:
     max-requests: 100
     window-seconds: 60
 
-# Actuator 配置
+# Actuator 配置（生产环境：最小化暴露）
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+      base-path: /actuator
   endpoint:
     health:
+      # 生产环境：不显示详细的健康信息
       show-details: never
+    shutdown:
+      enabled: false
 
 # 日志配置
 logging:
@@ -87,7 +94,10 @@ logging:
     root: INFO
     com.admin: INFO
     com.admin.mapper: INFO
-    org.springframework.web: INFO
+    org.springframework.web: WARN
   file:
     path: /var/log/admin-boot
     name: ${logging.file.path}/application.log
+    max-size: 100MB
+    max-history: 30
+    total-size-cap: 10GB

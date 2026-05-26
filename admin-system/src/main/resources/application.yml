@@ -13,8 +13,8 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:admin_boot}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:root123}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     type: com.zaxxer.hikari.HikariDataSource
     hikari:
       minimum-idle: 5
@@ -30,7 +30,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:skyware}
+      password: ${REDIS_PASSWORD:}
       database: ${REDIS_DB:0}
       timeout: 3000ms
       lettuce:
@@ -68,7 +68,7 @@ mybatis-plus:
   type-aliases-package: com.admin.**.entity
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl  # 生产级别配置：不打印 SQL
     cache-enabled: false
     call-setters-on-nulls: true
   global-config:
@@ -83,7 +83,7 @@ mybatis-plus:
 
 # JWT 配置
 jwt:
-  secret: ${JWT_SECRET:admin-boot-secret-key-must-be-at-least-32-characters-long-for-security}
+  secret: ${JWT_SECRET}
   access-token-expire-time: 900000      # 15分钟（毫秒）
   refresh-token-expire-time: 604800000  # 7天（毫秒）
 
@@ -92,6 +92,10 @@ file:
   upload-path: ${FILE_UPLOAD_PATH:/data/upload}
   storage-type: ${FILE_STORAGE_TYPE:local}
   allowed-extensions: jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,zip,rar
+  # 文件大小限制
+  max-file-size: 10485760  # 10MB（字节）
+  # 允许的 MIME 类型
+  allowed-mime-types: image/jpeg,image/png,image/gif,application/pdf,application/msword
 
 # 接口限流配置
 rate-limit:
