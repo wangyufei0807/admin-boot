@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.admin.system.mapper.SysLogininforMapper">
+
+    <resultMap id="BaseResultMap" type="com.admin.system.entity.SysLogininfor">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="user_name" property="userName"/>
+        <result column="ipaddr" property="ipaddr"/>
+        <result column="login_location" property="loginLocation"/>
+        <result column="browser" property="browser"/>
+        <result column="os" property="os"/>
+        <result column="login_status" property="loginStatus"/>
+        <result column="msg" property="msg"/>
+        <result column="login_time" property="loginTime"/>
+    </resultMap>
+
+</mapper>

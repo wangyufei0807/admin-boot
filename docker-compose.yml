@@ -1,0 +1,106 @@
+version: '3.8'
+
+# Admin-Boot 本地开发环境
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: admin-boot-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root123}
+      MYSQL_DATABASE: admin_boot
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./resources/sql:/docker-entrypoint-initdb.d:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max-connections=1000
+      - --innodb-buffer-pool-size=256M
+    networks:
+      - admin-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-root123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: admin-boot-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    networks:
+      - admin-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Admin-Boot 应用
+  admin-boot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: admin-boot
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      # Spring 配置
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES:-dev}
+      # 数据库配置
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-admin_boot}
+      - DB_USERNAME=root
+      - DB_PASSWORD=${DB_PASSWORD:-root123}
+      # Redis 配置
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=0
+      # JWT 配置
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-key-for-local-development-only-change-in-production}
+      # 文件上传配置
+      - FILE_UPLOAD_PATH=/data/upload
+      - FILE_STORAGE_TYPE=local
+    volumes:
+      - upload_data:/data/upload
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - admin-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  upload_data:
+    driver: local
+
+networks:
+  admin-network:
+    driver: bridge

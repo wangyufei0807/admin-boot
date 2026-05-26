@@ -1,0 +1,138 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: admin-boot
+  profiles:
+    active: dev
+
+  # 数据源配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:admin_boot}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root123}
+    type: com.zaxxer.hikari.HikariDataSource
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      pool-name: AdminBootHikariPool
+
+  # Redis 配置
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:skyware}
+      database: ${REDIS_DB:0}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  # 缓存配置
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000  # 缓存 TTL：1小时（毫秒）
+      cache-null-values: false
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+
+  # Jackson 配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.admin.**.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    cache-enabled: false
+    call-setters-on-nulls: true
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: delFlag
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      insert-strategy: not_empty
+      update-strategy: not_empty
+    banner: false
+
+# JWT 配置
+jwt:
+  secret: ${JWT_SECRET:admin-boot-secret-key-must-be-at-least-32-characters-long-for-security}
+  access-token-expire-time: 900000      # 15分钟（毫秒）
+  refresh-token-expire-time: 604800000  # 7天（毫秒）
+
+# 文件存储配置
+file:
+  upload-path: ${FILE_UPLOAD_PATH:/data/upload}
+  storage-type: ${FILE_STORAGE_TYPE:local}
+  allowed-extensions: jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,zip,rar
+
+# 接口限流配置
+rate-limit:
+  enabled: true
+  login:
+    max-requests: 5
+    window-seconds: 60
+  api:
+    max-requests: 100
+    window-seconds: 60
+
+# Knife4j API 文档配置
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+    swagger-model-name: 实体类列表
+    enable-version: false
+    enable-reload-cache: false
+    enable-after-script: true
+    enable-document-manage: true
+
+# Actuator 配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.admin: DEBUG
+    com.admin.mapper: DEBUG
+  file:
+    path: logs
+    name: ${logging.file.path}/application.log
+
+# Banner 配置
+spring.banner.location: classpath:banner.txt

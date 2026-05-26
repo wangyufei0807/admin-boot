@@ -1,0 +1,92 @@
+# 代码生成器配置
+
+# 数据库配置
+jdbc:
+  driver: com.mysql.cj.jdbc.Driver
+  url: jdbc:mysql://localhost:3306/admin_boot?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+  username: root
+  password: root123
+
+# 项目配置
+project:
+  # 作者
+  author: admin-boot
+  # 包名
+  packageName: com.admin.system
+  # 自动移除表前缀
+  autoRemovePre: false
+  # 表前缀
+  tablePrefix: sys_
+  # 是否覆盖已有文件
+  fileOverride: true
+
+# 输出配置
+output:
+  # Java 代码输出路径
+  javaPath: ../admin-system/src/main/java
+  # 资源文件输出路径
+  resourcesPath: ../admin-system/src/main/resources
+  # Mapper XML 输出路径
+  mapperXmlPath: ../admin-system/src/main/resources/mapper
+  # 是否生成到当前项目
+  currentProject: false
+
+# 生成配置
+generate:
+  # 需要生成的表名，多个用逗号分隔
+  tableNames: sys_product
+  # 是否生成 Entity
+  entity: true
+  # 是否生成 Controller
+  controller: true
+  # 是否生成 Service
+  service: true
+  # 是否生成 ServiceImpl
+  serviceImpl: true
+  # 是否生成 Mapper
+  mapper: true
+  # 是否生成 Mapper XML
+  mapperXml: true
+  # 是否生成 DTO
+  dto: true
+  # 是否生成 Query
+  query: true
+  # 是否生成 VO
+  vo: true
+  # 是否生成 Converter (MapStruct)
+  converter: true
+
+# Entity 配置
+entity:
+  # 是否使用 Lombok
+  lombok: true
+  # 是否开启 Swaggerv 注解
+  swagger: true
+  # 是否开启 SerialVersionUID
+  serialVersionUID: true
+  # 名称格式：true=驼峰，false=下划线
+  camelCase: true
+
+# Controller 配置
+controller:
+  # 是否生成 CRUD 方法
+  crud: true
+  # 是否生成分页查询
+  pagination: true
+  # 是否生成导出功能
+  export: true
+  # 是否生成导入功能
+  import: true
+  # REST 风格
+  restStyle: true
+  # API 前缀
+  apiPrefix: /api/system
+  # 是否添加 @ParameterObject 注解（展开查询参数）
+  parameterObject: true
+
+# Mapper 配置
+mapper:
+  # Mapper 继承基类
+  superMapperClass: BaseMapper
+  # Mapper 包名
+  mapperPackage: mapper

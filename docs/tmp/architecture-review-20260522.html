@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Architecture review — admin-boot</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+  </script>
+  <style>
+    .seam { stroke-dasharray: 4 4; }
+    .leak { stroke: #dc2626; }
+    .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    .shallow-box { height: 40px; }
+    .deep-box { height: 120px; }
+    .interface-h { height: 8px; }
+    .implementation-h { height: 32px; }
+  </style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans">
+  <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+    <!-- Header -->
+    <header class="border-b border-slate-200 pb-8">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-slate-900">Architecture Review</h1>
+          <p class="text-slate-500 mt-1">admin-boot · Spring Boot 3.2 + MyBatis-Plus</p>
+        </div>
+        <div class="text-right">
+          <p class="text-sm text-slate-400">2026-05-22</p>
+        </div>
+      </div>
+      <div class="mt-6 flex gap-6 text-xs">
+        <div class="flex items-center gap-2">
+          <div class="w-4 h-4 rounded border-2 border-dashed border-slate-400"></div>
+          <span class="text-slate-600">Seam (interface location)</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-4 h-4 bg-red-500"></div>
+          <span class="text-slate-600">Leakage</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-4 h-4 deep rounded"></div>
+          <span class="text-slate-600">Deep module</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Critical Finding Banner -->
+    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+      <div class="flex items-center gap-3">
+        <div class="text-red-600 text-2xl">⚠</div>
+        <div>
+          <h3 class="font-semibold text-red-800">Zero test coverage detected</h3>
+          <p class="text-sm text-red-700">No test files exist despite JUnit and TestContainers dependencies in pom.xml</p>
+        </div>
+      </div>
+    </div>
+
+    <section id="candidates" class="space-y-10">
+
+      <!-- Candidate 1: AuthServiceImpl -->
+      <article class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div class="p-6 border-b border-slate-100">
+          <div class="flex items-start justify-between">
+            <h2 class="text-xl font-semibold text-slate-900">Collapse Auth Service — Remove Cross-Module Leakage</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700">Strong</span>
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600">local-substitutable</span>
+            </div>
+          </div>
+          <p class="text-sm text-slate-500 mt-2 font-mono">AuthServiceImpl · JwtTokenUtil · SysUserService · SysMenuService · SysUserMapper · SysMenuMapper</p>
+        </div>
+
+        <div class="p-6">
+          <!-- Before/After Diagram -->
+          <div class="grid grid-cols-2 gap-6 mb-6">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">Before</h4>
+              <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <pre class="mermaid">
+flowchart TB
+  A[AuthController] --> B[AuthServiceImpl]
+  B --> C[JwtTokenUtil]
+  B --> D[PasswordEncoder]
+  B --> E[ISysUserService]
+  B --> F[SysUserMapper]
+  B --> G[ISysMenuService]
+  B --> H[SysMenuMapper]
+  E -.leak.-> F
+  G -.leak.-> H
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class F,H leak
+                </pre>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">After</h4>
+              <div class="relative h-48 flex items-center justify-center">
+                <div class="deep rounded-lg p-4 text-white text-center">
+                  <div class="text-xs uppercase tracking-wider opacity-60 mb-2">Deep Module</div>
+                  <div class="font-semibold">AuthModule</div>
+                  <div class="text-xs mt-2 opacity-80">login() · logout() · refreshToken()</div>
+                </div>
+                <div class="absolute bottom-2 left-0 right-0 text-center">
+                  <div class="inline-flex items-center gap-2 text-xs text-slate-500">
+                    <div class="w-16 border-t-2 border-dashed border-slate-400"></div>
+                    <span>1 interface</span>
+                    <div class="w-16 border-t-2 border-dashed border-slate-400"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Problem</h4>
+              <p class="text-slate-600">AuthServiceImpl has 6 direct dependencies including 2 mappers bypassed through the service layer. Cross-cutting concerns (JWT, password encoding, permissions) are injected into business logic.</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Solution</h4>
+              <p class="text-slate-600">Extract token management to TokenService, move mapper access behind service seams, inject only authenticated-user representation (LoginUser) rather than raw infrastructure.</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Wins</h4>
+              <ul class="text-sm text-slate-600 grid grid-cols-2 gap-2">
+                <li class="flex items-center gap-2">✓ Locality: login bugs stay in one module</li>
+                <li class="flex items-center gap-2">✓ Leverage: test auth without Redis/JWT stack</li>
+                <li class="flex items-center gap-2">✓ Interface shrinks: 3 methods vs 6 deps</li>
+                <li class="flex items-center gap-2">✓ Mappers behind service seam</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Candidate 2: UserContext Redundancy -->
+      <article class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div class="p-6 border-b border-slate-100">
+          <div class="flex items-start justify-between">
+            <h2 class="text-xl font-semibold text-slate-900">Remove Parallel Context — Unify User Resolution</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700">Strong</span>
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600">mock</span>
+            </div>
+          </div>
+          <p class="text-sm text-slate-500 mt-2 font-mono">UserContext · SecurityContextHolder · UserContextFilter · PermissionAspect · LogAspect</p>
+        </div>
+
+        <div class="p-6">
+          <!-- Before/After Diagram -->
+          <div class="grid grid-cols-2 gap-6 mb-6">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">Before</h4>
+              <div class="relative h-48">
+                <div class="absolute top-4 left-4 right-4 h-12 rounded border-2 border-dashed border-slate-400 flex items-center justify-center text-xs">
+                  SecurityContextHolder
+                </div>
+                <div class="absolute top-20 left-4 right-4 h-12 rounded border-2 border-dashed border-amber-400 flex items-center justify-center text-xs">
+                  UserContext (ThreadLocal)
+                </div>
+                <div class="absolute top-36 left-4 w-16 h-8 rounded border border-slate-300 flex items-center justify-center text-xs">Filter</div>
+                <div class="absolute top-36 right-4 w-16 h-8 rounded border border-slate-300 flex items-center justify-center text-xs">Aspect</div>
+                <div class="absolute top-36 left-1/2 -translate-x-1/2 w-16 h-8 rounded border border-slate-300 flex items-center justify-center text-xs">Controller</div>
+                <svg class="absolute inset-0 w-full h-full" style="z-index:-1">
+                  <line x1="32" y1="32" x2="32" y2="56" stroke="#dc2626" stroke-width="2" stroke-dasharray="4 4"/>
+                  <line x1="70%" y1="56" x2="25%" y2="80%" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 4"/>
+                  <line x1="70%" y1="56" x2="75%" y2="80%" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 4"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">After</h4>
+              <div class="relative h-48 flex items-center justify-center">
+                <div class="deep rounded-lg p-4 text-white text-center">
+                  <div class="text-xs uppercase tracking-wider opacity-60 mb-2">Single Source</div>
+                  <div class="font-semibold">SecurityContext</div>
+                  <div class="text-xs mt-2 opacity-80">Authentication.getPrincipal()</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Problem</h4>
+              <p class="text-slate-600">UserContext duplicates Spring Security's SecurityContextHolder. Both hold LoginUser, creating two ways to resolve the current user with no clear winner.</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Solution</h4>
+              <p class="text-slate-600">Delete UserContext and UserContextFilter. Replace all UserContext.getUser() calls with SecurityContextHolder.getContext().getAuthentication().getPrincipal().</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Wins</h4>
+              <ul class="text-sm text-slate-600 grid grid-cols-2 gap-2">
+                <li class="flex items-center gap-2">✓ Single source of truth for current user</li>
+                <li class="flex items-center gap-2">✓ Delete 3 files, modify 4</li>
+                <li class="flex items-center gap-2">✓ Testability: mock SecurityContext</li>
+                <li class="flex items-center gap-2">✓ Removes ThreadLocal state</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Candidate 3: Dead Code Removal -->
+      <article class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div class="p-6 border-b border-slate-100">
+          <div class="flex items-start justify-between">
+            <h2 class="text-xl font-semibold text-slate-900">Delete Shallow Wrappers — Restore Locality</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700">Strong</span>
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600">in-process</span>
+            </div>
+          </div>
+          <p class="text-sm text-slate-500 mt-2 font-mono">BaseController · BaseService · Constants · StringUtils · DateUtils</p>
+        </div>
+
+        <div class="p-6">
+          <!-- Before/After Diagram -->
+          <div class="grid grid-cols-2 gap-6 mb-6">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">Before</h4>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between bg-white rounded p-2 border">
+                  <span class="text-xs font-mono">BaseController</span>
+                  <span class="text-xs text-red-500">unused</span>
+                </div>
+                <div class="flex items-center justify-between bg-white rounded p-2 border">
+                  <span class="text-xs font-mono">BaseService</span>
+                  <span class="text-xs text-amber-500">3 passthru</span>
+                </div>
+                <div class="flex items-center justify-between bg-white rounded p-2 border">
+                  <span class="text-xs font-mono">Constants</span>
+                  <span class="text-xs text-amber-500">duplicates</span>
+                </div>
+                <div class="flex items-center justify-between bg-white rounded p-2 border">
+                  <span class="text-xs font-mono">StringUtils</span>
+                  <span class="text-xs text-amber-500">passthru</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">After</h4>
+              <div class="h-32 flex items-center justify-center">
+                <div class="text-center">
+                  <div class="text-2xl font-bold text-emerald-600">-5</div>
+                  <div class="text-xs text-slate-500">files removed</div>
+                  <div class="text-xs text-emerald-600 mt-2">Complexity goes to callers</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Problem</h4>
+              <p class="text-slate-600">BaseController is never extended. BaseService adds 3 passthrough methods. Constants duplicates enum values. Utility classes wrap JDK with no value-add.</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Solution</h4>
+              <p class="text-slate-600">Delete BaseController entirely. Inline BaseService methods. Replace Constants usage with enums. Migrate utility calls to direct JDK or Spring equivalents.</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Wins</h4>
+              <ul class="text-sm text-slate-600 grid grid-cols-2 gap-2">
+                <li class="flex items-center gap-2">✓ Deletion test passes</li>
+                <li class="flex items-center gap-2">✓ No callers affected (BaseController)</li>
+                <li class="flex items-center gap-2">✓ Complexity concentrated, not hidden</li>
+                <li class="flex items-center gap-2">✓ Cleaner navigation</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Candidate 4: Permission Aspect -->
+      <article class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div class="p-6 border-b border-slate-100">
+          <div class="flex items-start justify-between">
+            <h2 class="text-xl font-semibold text-slate-900">Consolidate Permission Checking — Use Spring Security</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-700">Worth exploring</span>
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600">ports & adapters</span>
+            </div>
+          </div>
+          <p class="text-sm text-slate-500 mt-2 font-mono">PermissionAspect · @RequiresPermissions · @PreAuthorize</p>
+        </div>
+
+        <div class="p-6">
+          <!-- Before/After Diagram -->
+          <div class="grid grid-cols-2 gap-6 mb-6">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">Before</h4>
+              <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <pre class="mermaid">
+flowchart TB
+  A[Controller] --> B[@RequiresPermissions]
+  B --> C[PermissionAspect]
+  C --> D[UserContext]
+  C --> E[ResponseCode]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class D,E leak
+                </pre>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">After</h4>
+              <div class="relative h-32 flex items-center justify-center">
+                <div class="deep rounded-lg p-4 text-white text-center">
+                  <div class="text-xs uppercase tracking-wider opacity-60 mb-2">Framework</div>
+                  <div class="font-semibold">@PreAuthorize</div>
+                  <div class="text-xs mt-2 opacity-80">MethodSecurityInterceptor</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Problem</h4>
+              <p class="text-slate-600">PermissionAspect re-implements Spring Security's @PreAuthorize logic. Two parallel authorization mechanisms can drift or conflict.</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Solution</h4>
+              <p class="text-slate-600">Enable @EnableMethodSecurity, migrate @RequiresPermissions to @PreAuthorize("@ss.hasPermi()"), extract hasPermi to a component method.</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Wins</h4>
+              <ul class="text-sm text-slate-600 grid grid-cols-2 gap-2">
+                <li class="flex items-center gap-2">✓ Leverage: framework owns security</li>
+                <li class="flex items-center gap-2">✓ Delete PermissionAspect</li>
+                <li class="flex items-center gap-2">✓ Consistent with Spring ecosystem</li>
+                <li class="flex items-center gap-2">✓ Less custom code</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Candidate 5: LogAspect Complexity -->
+      <article class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div class="p-6 border-b border-slate-100">
+          <div class="flex items-start justify-between">
+            <h2 class="text-xl font-semibold text-slate-900">Split LogAspect — Extract IP Resolution</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-700">Worth exploring</span>
+              <span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600">local-substitutable</span>
+            </div>
+          </div>
+          <p class="text-sm text-slate-500 mt-2 font-mono">LogAspect · IpUtils</p>
+        </div>
+
+        <div class="p-6">
+          <!-- Before/After Diagram -->
+          <div class="grid grid-cols-2 gap-6 mb-6">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">Before</h4>
+              <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <pre class="mermaid">
+flowchart TB
+  A[LogAspect] --> B[Serialization]
+  A --> C[IP extraction]
+  A --> D[User context]
+  A --> E[DB insert]
+  C -.leak.-> F[IpUtils]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class F leak
+                </pre>
+              </div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-4">After</h4>
+              <div class="relative h-32 flex items-center justify-center">
+                <div class="deep rounded-lg p-3 text-white text-center">
+                  <div class="text-xs uppercase tracking-wider opacity-60 mb-2">Deep Module</div>
+                  <div class="font-semibold">OperationLogService</div>
+                  <div class="text-xs mt-1 opacity-80">log() · asyncWrite()</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Problem</h4>
+              <p class="text-slate-600">LogAspect handles serialization, IP extraction, user context, and DB insert in one 170-line class. IP extraction duplicates IpUtils.</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Solution</h4>
+              <p class="text-slate-600">Extract HttpRequestResolver for request extraction, IpResolver for IP resolution (delegates to IpUtils), create OperationLogService for DB operations.</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 mb-1">Wins</h4>
+              <ul class="text-sm text-slate-600 grid grid-cols-2 gap-2">
+                <li class="flex items-center gap-2">✓ Locality: each concern isolated</li>
+                <li class="flex items-center gap-2">✓ Test IP parsing without aspect</li>
+                <li class="flex items-center gap-2">✓ Async log writes possible</li>
+                <li class="flex items-center gap-2">✓ Removes IpUtils duplication</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- Top Recommendation -->
+    <section id="top-recommendation" class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-8 text-white">
+      <div class="flex items-start justify-between">
+        <div>
+          <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Top Recommendation</div>
+          <h2 class="text-2xl font-bold">Remove Parallel Context — Unify User Resolution</h2>
+        </div>
+        <div class="px-3 py-1 rounded-full bg-emerald-500 text-white text-sm font-medium">
+          Start Here
+        </div>
+      </div>
+      <p class="text-slate-300 mt-4">
+        The UserContext duplication is the clearest win. Three files deleted, four modified, zero risk of breaking behavior.
+        Eliminates a ThreadLocal, removes parallel state, and unifies how the current user is resolved across the codebase.
+      </p>
+      <div class="mt-6 flex gap-6 text-sm">
+        <div>
+          <div class="text-slate-400">Files removed</div>
+          <div class="text-2xl font-bold text-emerald-400">3</div>
+        </div>
+        <div>
+          <div class="text-slate-400">Files modified</div>
+          <div class="text-2xl font-bold text-emerald-400">4</div>
+        </div>
+        <div>
+          <div class="text-slate-400">Risk</div>
+          <div class="text-2xl font-bold text-emerald-400">Low</div>
+        </div>
+      </div>
+      <a href="#candidates" class="inline-flex items-center gap-2 mt-6 text-sm text-slate-400 hover:text-white">
+        <span>Jump to full analysis</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+        </svg>
+      </a>
+    </section>
+
+    <!-- Quick Wins Section -->
+    <section class="bg-white rounded-xl border border-slate-200 p-6">
+      <h3 class="text-lg font-semibold text-slate-900 mb-4">Quick Wins (No Deepening Required)</h3>
+      <div class="grid grid-cols-3 gap-4">
+        <div class="p-4 rounded-lg bg-slate-50">
+          <div class="text-2xl mb-2">🗑</div>
+          <h4 class="font-medium text-slate-900">Delete BaseController</h4>
+          <p class="text-sm text-slate-500 mt-1">Zero callers, zero impact</p>
+        </div>
+        <div class="p-4 rounded-lg bg-slate-50">
+          <div class="text-2xl mb-2">📦</div>
+          <h4 class="font-medium text-slate-900">Add test scaffolding</h4>
+          <p class="text-sm text-slate-500 mt-1">Enable CI/CD guardrails</p>
+        </div>
+        <div class="p-4 rounded-lg bg-slate-50">
+          <div class="text-2xl mb-2">🔧</div>
+          <h4 class="font-medium text-slate-900">Inline Constants</h4>
+          <p class="text-sm text-slate-500 mt-1">Use enums directly</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>
